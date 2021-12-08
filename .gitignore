@@ -1,0 +1,10 @@
+*.c
+*.cc
+*.cpp
+*.csv
+*.txt
+cpgs/
+examples/
+result/
+*.vscode
+
