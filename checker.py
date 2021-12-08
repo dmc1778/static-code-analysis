@@ -243,7 +243,7 @@ def DoubleFree(adjacency_list, code, node_id_to_line_number, filename):
                     except:
                         pass
         if len(df) >= 2:
-            print("Possible double free or use after free in {}", filename)
+            print("Possible double free or use after free in", filename)
             print(df)
             print('#######################################################')
 
