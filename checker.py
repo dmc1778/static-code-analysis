@@ -7,6 +7,8 @@ from collections import defaultdict
 import json
 import pandas as pd
 
+import sys
+sys.setrecursionlimit(10**6)
 
 def read_code_file(file_path):
     code_lines = {}
@@ -81,6 +83,8 @@ def extract_nodes_with_location_info(nodes):
     line_numbers = []
     node_id_to_line_number = {}
     node_indice_to_node_id = {}
+    line_number_to_node_id = {}
+    node_id_to_node_indice = {}
     for node_index, node in enumerate(nodes):
         assert isinstance(node, dict)
         if 'location' in node.keys():
@@ -94,7 +98,9 @@ def extract_nodes_with_location_info(nodes):
             line_numbers.append(line_num)
             node_id_to_line_number[node_id] = line_num
             node_indice_to_node_id[node_index] = node_id
-    return node_indices, node_ids, line_numbers, node_id_to_line_number, node_indice_to_node_id
+            line_number_to_node_id[line_num] = node_id
+            node_id_to_node_indice[node_id] = node_index
+    return node_indices, node_ids, line_numbers, node_id_to_line_number, node_indice_to_node_id, line_number_to_node_id, node_id_to_node_indice
 
 def read_csv(csv_file_path):
     data = []
@@ -168,78 +174,77 @@ def build_tree(edges, original_nodes):
 
     return parent, forest    
 
-def left_tree(left_tree):
-    print('s')
+# dfs_order = []
+# def dfs(visited, graph, node, call_chain, code):
+#     if len(call_chain) >= 2:
+#         return call_chain
+#     if node not in visited:
+#         visited.add(node)
+#         double_free_rule = r'(Py_DECREF\s\(([^\)]+)\)|free\s\(([^\)]+)\)|Py_XDECREF\s\(([^\)]+)\)|Py_CLEAR\s\(([^\)]+)\))'
+#         try:
+#             if re.findall(double_free_rule, code[node]):
+#                 call_chain[node] = graph['code']
+#         except:
+#             print('could not find the line!')
+#         #if graph['has_child']:
+#         try:
+#             for neighbour in graph[node]:
+#                 dfs(visited, graph, neighbour, call_chain, code)
+#         except:
+#             return None
 
-def right_tree(right_tree):
-    print('s')
+# def traversal(depth_tree):
+#     visited = {}
+#     if depth_tree['type'] == 'IdentifierDeclStatement':
+#         dfs(visited, depth_tree, depth_tree['id'])
+#     if not depth_tree['has_child']:
+#         return None
+#     if depth_tree == None:
+#         print('Invalid Tree!')
+#     for item in depth_tree['children']:
+#         traversal(item)
 
-def subtree_traversal(subtree):
-    if subtree['has_child'] == False:
-        return subtree['code']
-    if subtree['type'] == 'ExpressionStatement' or subtree == 'AssignmentExpression':
-        left_tree(subtree['children'][0])
-        right_tree(subtree['children'][1])
-    if subtree == None:
-        print('Invalid Tree!')
-    for item in subtree['children']:
-        subtree_traversal(item)
-    return None
+visited = set()
+def dfs(tree, node_id):
+    print(tree['id'])
+    if tree == None:
+        return 1
+    if not tree['has_child']:
+        return 1
+    if tree['id'] not in visited:
+        visited.add(tree['id'])
+    if int(tree['id']) == node_id:
+        print(tree['id'])
+    for neighbors in tree['children']:
+        dfs(neighbors, node_id)
 
-dfs_order = []
-def dfs(visited, graph, node, call_chain, code):
-    if len(call_chain) >= 2:
-        return call_chain
-    if node not in visited:
-        visited.add(node)
-        double_free_rule = r'(Py_DECREF\s\(([^\)]+)\)|free\s\(([^\)]+)\)|Py_XDECREF\s\(([^\)]+)\)|Py_CLEAR\s\(([^\)]+)\))'
-        try:
-            if re.findall(double_free_rule, code[node]):
-                call_chain[node] = graph['code']
-        except:
-            print('could not find the line!')
-        #if graph['has_child']:
-        try:
-            for neighbour in graph[node]:
-                dfs(visited, graph, neighbour, call_chain, code)
-        except:
-            return None
+def traverse(forest, node_id):
+    for tree in forest:
+        dfs(tree, node_id)
 
-def traversal(depth_tree):
-    visited = {}
-    if depth_tree['type'] == 'IdentifierDeclStatement':
-        dfs(visited, depth_tree, depth_tree['id'])
-    if not depth_tree['has_child']:
-        return None
-    if depth_tree == None:
-        print('Invalid Tree!')
-    for item in depth_tree['children']:
-        traversal(item)
-
-
-def UseAfterFree(adjacency_list, code, node_id_to_line_number, item):
-    print('')
-
-def DoubleFree(adjacency_list, code, node_id_to_line_number, filename):
+def DoubleFree(adjacency_list, code, node_id_to_line_number, line_number_to_node_id, filename, node_id_to_node_indice, forest):
     for parent, child in adjacency_list.items():
         df = {}
-        a = [item for item in child if item]
-        if a:
+        #a = [item for item in child if item]
+        if len(child) >= 2:
             for c in child:
-                memory = []
-                for sub_item in c:
+                memory = {}
+                for d in c:
                     try:
                         double_free_rule = r'(Py_DECREF\(([^\)]+)\)|free\(([^\)]+)\)|Py_XDECREF\(([^\)]+)\)|Py_CLEAR\(([^\)]+)\))'
-                        tobject = re.findall(double_free_rule, code[sub_item])
+                        tobject = re.findall(double_free_rule, code[d])
                         if tobject:
                             tobject = [x for x in tobject[0] if bool(x) != False]
-                            if re.findall(double_free_rule, code[sub_item]):
-                                df[sub_item] = code[sub_item]
-                                memory = tobject[1]
-                        else:
-                            rule2 = r'^(.*?(\b'+memory+r'\b)[^$]*)$'
-                            if re.findall(rule2, code[sub_item]):
-                                df[sub_item] = code[sub_item]
+                            # traverse(forest, line_number_to_node_id[d])
+                            if tobject[0] in memory:
+                                df[d] = code[d]
+                            if re.findall(double_free_rule, code[d]):
+                                df[d] = code[d]
+                                memory[tobject[0]] = tobject[0]
+                                # else:
+                                #     rule2 = r'^(.*?(\b'+memory+r'\b)[^$]*)$'
+                                #     if re.findall(rule2, code[sub_item]):
+                                #         df[sub_item] = code[sub_item]
                     except:
                         pass
         if len(df) >= 2:
@@ -258,8 +263,8 @@ def clean_adjacency(adjacency_list):
     return c
 
 def main():
-    _base_cpg_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/cpgs/linux'
-    _base_file_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/examples/linux/'
+    _base_cpg_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/function_level_cpgs/ffmpeg'
+    _base_file_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/function_level_examples/ffmpeg/'
     for root, dir, file in os.walk(_base_cpg_path):
         current_dir = os.path.join(root, dir[0])
         p = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/result'
@@ -270,13 +275,15 @@ def main():
                 code_file_path = _base_file_path+item
                 edges = read_csv(edges_path)
                 nodes = read_csv(nodes_path)
-                node_indices, node_ids, line_numbers, node_id_to_line_number, node_indice_to_node_id = extract_nodes_with_location_info(nodes)
+                node_indices, node_ids, line_numbers, node_id_to_line_number, node_indice_to_node_id, line_number_to_node_id, node_id_to_node_indice = extract_nodes_with_location_info(nodes)
                             
                 adjacency_list = create_adjacency_list(line_numbers, node_id_to_line_number, edges, data_dependency_only=False)
                 adjacency_list = clean_adjacency(adjacency_list)
                 code = read_code_file(code_file_path)
+
+                depth_tree, forest = build_tree(edges, nodes)
             
-                df = DoubleFree(adjacency_list, code, node_id_to_line_number, item)
+                df = DoubleFree(adjacency_list, code, node_id_to_line_number, line_number_to_node_id, item, node_id_to_node_indice, depth_tree)
             except:
                 print('Error')
       
