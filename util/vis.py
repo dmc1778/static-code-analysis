@@ -5,6 +5,7 @@ import re
 from graphviz import Digraph
 import sys
 import sctokenizer
+
 sys.setrecursionlimit(10**6)
 
 
@@ -313,27 +314,31 @@ def invert_lookup(lookup):
 
 
 def null_checker(v, stmt):
-    v = v.replace(" ", "")
     ss = v + r"\s*=\s*([\S\s]+)"
     y = re.findall(ss, stmt)
-    for item in y:
-        if 'NULL' in item:
-            return True
-        else:
-            return False
-
-            
-def assignment_checker(v, stmt):
-    return None
+    if y:
+        for item in y:
+            if 'NULL' in item:
+                return 'NULL'
+            else:
+                return 'Assignment'
+    else:
+        return False
 
 
 def backward_flow_history(flow_history, index, target, nodes):
+    stack = []
     for j in range(0, index):
         stmt = get_stmt_from_node_info(nodes, flow_history[j])
-        if null_checker(target, stmt):
-            return True
-        else:
-            continue
+        flag = null_checker(target, stmt)
+        if flag != False:
+            stack.append(flag)
+
+    # if stack[-1] in flow_history:
+    #     return True
+    # else:
+    #     return False
+    return stack
 
 
 def UseAfterFree(control_flow, code, node_id_to_line_number, line_number_to_node_id, filename, node_id_to_node_indice, depth_tree, nodes):
@@ -341,24 +346,35 @@ def UseAfterFree(control_flow, code, node_id_to_line_number, line_number_to_node
     flow_history = createLinkedList(control_flow)
     double_free_rule = r'\bfree\b\s\(([^\)]+)\)|(\bPy_DECREF\b\s\(([^\)]+)\)|\bav_free\b\s\(([^\)]+)\)|\bkfree\b\s\(([^\)]+)\)|\bPy_XDECREF\b\s\(([^\)]+)\)|\bPy_CLEAR\b\s\(([^\)]+)\))|(\bPy_DECREF\b\(([^\)]+)\)|\bav_free\b\(([^\)]+)\)|\bkfree\b\(([^\)]+)\)|\bPy_XDECREF\b\(([^\)]+)\)|\bPy_CLEAR\b\(([^\)]+)\))|\bfree\b\(([^\)]+)\)|\bdev_kfree_skb\b\(([^\)]+)\)|\bdev_kfree_skb\b\s\(([^\)]+)\)'
     paranthesis_rule = r"\((.*?)\)"
+
     for i, f in enumerate(flow_history):
         stmt = get_stmt_from_node_info(nodes, f)
         tobject = re.findall(double_free_rule, stmt)
         p = re.findall(paranthesis_rule, stmt)
         if tobject:
             # tobject = [x for x in p[0] if bool(x) != False]
-
             tokenized_stmt = tokenizer(p[0])
-            if not backward_flow_history(flow_history, i-1, tokenized_stmt[0], nodes):
+            out = backward_flow_history(
+                flow_history, i, tokenized_stmt[0], nodes)
+            if bool(out):
+                if out[-1] != 'NULL':
+                    lookup[f] = tokenized_stmt[0]
+            else:
                 lookup[f] = tokenized_stmt[0]
 
         tokenized_stmt = tokenizer(stmt)
         for token in tokenized_stmt:
             for k, v in lookup.items():
-                if null_checker(v, stmt):
+                out = null_checker(v, stmt)
+                if out == 'NULL':
                     new_lookup = invert_lookup(lookup)
                     del new_lookup[v]
-                    lookup = new_lookup
+                    lookup = invert_lookup(new_lookup)
+                    break
+                elif out == 'Assignment':
+                    new_lookup = invert_lookup(lookup)
+                    del new_lookup[v]
+                    lookup = invert_lookup(new_lookup)
                     break
                 else:
                     x = re.findall(r"(" + v + r")", token)
@@ -399,8 +415,8 @@ def clean_adjacency(adjacency_list):
 
 
 def main():
-    _base_cpg_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/test_cpgs/useafterfree2.c'
-    _base_file_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/test_examples/useafterfree2.c'
+    _base_cpg_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/test_cpgs/cqueue_free.c'
+    _base_file_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/test_examples/cqueue_free.c'
 
     edges_path = os.path.join(_base_cpg_path, 'edges.csv')
     nodes_path = os.path.join(_base_cpg_path, 'nodes.csv')
