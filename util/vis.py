@@ -341,7 +341,56 @@ def backward_flow_history(flow_history, index, target, nodes):
     return stack
 
 
-def UseAfterFree(control_flow, code, node_id_to_line_number, line_number_to_node_id, filename, node_id_to_node_indice, depth_tree, nodes):
+# def UseAfterFree(control_flow, code, node_id_to_line_number, line_number_to_node_id, filename, node_id_to_node_indice, nodes):
+#     lookup = {}
+#     flow_history = createLinkedList(control_flow)
+#     double_free_rule = r'\bav_freep\b\(([^\)]+)\)|\bav_freep\b\s\(([^\)]+)\)|\bfree\b\s\(([^\)]+)\)|(\bPy_DECREF\b\s\(([^\)]+)\)|\bav_free\b\s\(([^\)]+)\)|\bkfree\b\s\(([^\)]+)\)|\bPy_XDECREF\b\s\(([^\)]+)\)|\bPy_CLEAR\b\s\(([^\)]+)\))|(\bPy_DECREF\b\(([^\)]+)\)|\bav_free\b\(([^\)]+)\)|\bkfree\b\(([^\)]+)\)|\bPy_XDECREF\b\(([^\)]+)\)|\bPy_CLEAR\b\(([^\)]+)\))|\bfree\b\(([^\)]+)\)|\bdev_kfree_skb\b\(([^\)]+)\)|\bdev_kfree_skb\b\s\(([^\)]+)\)'
+#     paranthesis_rule = r"\((.*?)\)"
+
+#     for i, f in enumerate(flow_history):
+#         stmt = get_stmt_from_node_info(nodes, f)
+#         tobject = re.findall(double_free_rule, stmt)
+#         p = re.findall(paranthesis_rule, stmt)
+#         if p:
+#             p[0] = p[0].replace(" ", "")
+#         if tobject:
+#             # tobject = [x for x in p[0] if bool(x) != False]
+
+#             # tokenized_stmt = tokenizer(p[0])
+#             out = backward_flow_history(
+#                 flow_history, i, p[0], nodes)
+#             if bool(out):
+#                 if out[-1] != 'NULL':
+#                     lookup[f] = p[0]
+#             else:
+#                 lookup[f] = p[0]
+
+#         # tokenized_stmt = tokenizer(stmt)
+#         p = re.findall(paranthesis_rule, stmt)
+#         if p:
+#             p[0] = p[0].replace(" ", "")
+#         # for token in tokenized_stmt:
+#         for k, v in lookup.items():
+#             out = null_checker(v, stmt)
+#             if out == 'NULL':
+#                 new_lookup = invert_lookup(lookup)
+#                 del new_lookup[v]
+#                 lookup = invert_lookup(new_lookup)
+#                 break
+#             elif out == 'Assignment':
+#                 new_lookup = invert_lookup(lookup)
+#                 del new_lookup[v]
+#                 lookup = invert_lookup(new_lookup)
+#                 break
+#             else:
+#                 if p:
+#                     x = re.findall(r"(" + v + r")", p[0])
+#                     if x:
+#                         if k != f:
+#                             print(
+#                                 'Possible CWE-416 in {}: lines {} and {}'.format(filename, k, f))
+
+def UseAfterFree(control_flow, code, node_id_to_line_number, line_number_to_node_id, filename, node_id_to_node_indice, nodes):
     lookup = {}
     flow_history = createLinkedList(control_flow)
     double_free_rule = r'\bfree\b\s\(([^\)]+)\)|(\bPy_DECREF\b\s\(([^\)]+)\)|\bav_free\b\s\(([^\)]+)\)|\bkfree\b\s\(([^\)]+)\)|\bPy_XDECREF\b\s\(([^\)]+)\)|\bPy_CLEAR\b\s\(([^\)]+)\))|(\bPy_DECREF\b\(([^\)]+)\)|\bav_free\b\(([^\)]+)\)|\bkfree\b\(([^\)]+)\)|\bPy_XDECREF\b\(([^\)]+)\)|\bPy_CLEAR\b\(([^\)]+)\))|\bfree\b\(([^\)]+)\)|\bdev_kfree_skb\b\(([^\)]+)\)|\bdev_kfree_skb\b\s\(([^\)]+)\)'
@@ -415,8 +464,8 @@ def clean_adjacency(adjacency_list):
 
 
 def main():
-    _base_cpg_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/test_cpgs/cqueue_free.c'
-    _base_file_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/test_examples/cqueue_free.c'
+    _base_cpg_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/test_cpgs/datetime_strings.c'
+    _base_file_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/test_examples/datetime_strings.c'
 
     edges_path = os.path.join(_base_cpg_path, 'edges.csv')
     nodes_path = os.path.join(_base_cpg_path, 'nodes.csv')
@@ -440,7 +489,7 @@ def main():
     #            line_number_to_node_id, 'cqueue_free.c', node_id_to_node_indice, forest)
 
     UseAfterFree(control_flow, code, node_id_to_line_number,
-                 line_number_to_node_id, 'CWE-416.c', node_id_to_node_indice, depth_tree, nodes)
+                 line_number_to_node_id, 'datetime_busdaycal', node_id_to_node_indice, nodes)
 
 
 if __name__ == '__main__':

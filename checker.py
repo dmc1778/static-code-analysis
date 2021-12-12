@@ -269,31 +269,132 @@ def get_stmt_from_node_info(nodes, parent):
                     return node['code']
 
 
-def UseAfterFree(code, node_id_to_line_number, line_number_to_node_id, filename, node_id_to_node_indice, nodes, edges, line_numbers):
-    control_flow = create_adjacency_list(line_numbers, node_id_to_line_number,
-                                         edges, data_dependency_only=False, control_dependency_only=True, both=False)
-    control_flow = clean_adjacency(control_flow)
+def invert_lookup(lookup):
+    return {v: k for k, v in lookup.items()}
+
+
+def null_checker(v, stmt):
+    stmt = stmt.replace(" ", "")
+    exs = r"(\b"+v+r"\b)"
+    if re.findall(exs, stmt):
+        # ss = v + r"\s*=\s*([\S\s]+)"
+        ss = r"\s*=\s*(.*)"
+        y = re.findall(ss, stmt)
+        if y:
+            for item in y:
+                if 'NULL' in item:
+                    return 'NULL'
+                else:
+                    return 'Assignment'
+    else:
+        return False
+
+
+def backward_flow_history(flow_history, index, target, nodes):
+    stack = []
+    for j in range(0, index):
+        stmt = get_stmt_from_node_info(nodes, flow_history[j])
+        flag = null_checker(target, stmt)
+        if flag != False:
+            stack.append(flag)
+
+    # if stack[-1] in flow_history:
+    #     return True
+    # else:
+    #     return False
+    return stack
+
+
+# def UseAfterFree(control_flow, code, node_id_to_line_number, line_number_to_node_id, filename, node_id_to_node_indice, nodes):
+#     lookup = {}
+#     flow_history = createLinkedList(control_flow)
+#     double_free_rule = r'\bav_freep\b\(([^\)]+)\)|\bav_freep\b\s\(([^\)]+)\)|\bfree\b\s\(([^\)]+)\)|(\bPy_DECREF\b\s\(([^\)]+)\)|\bav_free\b\s\(([^\)]+)\)|\bkfree\b\s\(([^\)]+)\)|\bPy_XDECREF\b\s\(([^\)]+)\)|\bPy_CLEAR\b\s\(([^\)]+)\))|(\bPy_DECREF\b\(([^\)]+)\)|\bav_free\b\(([^\)]+)\)|\bkfree\b\(([^\)]+)\)|\bPy_XDECREF\b\(([^\)]+)\)|\bPy_CLEAR\b\(([^\)]+)\))|\bfree\b\(([^\)]+)\)|\bdev_kfree_skb\b\(([^\)]+)\)|\bdev_kfree_skb\b\s\(([^\)]+)\)'
+#     paranthesis_rule = r"\((.*?)\)"
+
+#     for i, f in enumerate(flow_history):
+#         stmt = get_stmt_from_node_info(nodes, f)
+#         tobject = re.findall(double_free_rule, stmt)
+#         p = re.findall(paranthesis_rule, stmt)
+#         if tobject:
+#             # tobject = [x for x in p[0] if bool(x) != False]
+#             tokenized_stmt = tokenizer(p[0])
+#             out = backward_flow_history(
+#                 flow_history, i, tokenized_stmt[0], nodes)
+#             if bool(out):
+#                 if out[-1] != 'NULL':
+#                     lookup[f] = tokenized_stmt[0]
+#             else:
+#                 lookup[f] = tokenized_stmt[0]
+
+#         tokenized_stmt = tokenizer(stmt)
+#         for token in tokenized_stmt:
+#             for k, v in lookup.items():
+#                 out = null_checker(v, stmt)
+#                 if out == 'NULL':
+#                     new_lookup = invert_lookup(lookup)
+#                     del new_lookup[v]
+#                     lookup = invert_lookup(new_lookup)
+#                     break
+#                 elif out == 'Assignment':
+#                     new_lookup = invert_lookup(lookup)
+#                     del new_lookup[v]
+#                     lookup = invert_lookup(new_lookup)
+#                     break
+#                 else:
+#                     x = re.findall(r"(" + v + r")", token)
+#                     if x:
+#                         if k != f:
+#                             print(
+#                                 'Possible CWE-416 in {}: lines {} and {}'.format(filename, k, f))
+
+def UseAfterFree(control_flow, code, node_id_to_line_number, line_number_to_node_id, filename, node_id_to_node_indice, nodes):
     lookup = {}
     flow_history = createLinkedList(control_flow)
-    double_free_rule = r'\bfree\b\s\(([^\)]+)\)|(\bPy_DECREF\b\s\(([^\)]+)\)|\bav_free\b\s\(([^\)]+)\)|\bkfree\b\s\(([^\)]+)\)|\bPy_XDECREF\b\s\(([^\)]+)\)|\bPy_CLEAR\b\s\(([^\)]+)\))|(\bPy_DECREF\b\(([^\)]+)\)|\bav_free\b\(([^\)]+)\)|\bkfree\b\(([^\)]+)\)|\bPy_XDECREF\b\(([^\)]+)\)|\bPy_CLEAR\b\(([^\)]+)\))|\bfree\b\(([^\)]+)\)'
+    double_free_rule = r'\bav_freep\b\(([^\)]+)\)|\bav_freep\b\s\(([^\)]+)\)|\bfree\b\s\(([^\)]+)\)|(\bPy_DECREF\b\s\(([^\)]+)\)|\bav_free\b\s\(([^\)]+)\)|\bkfree\b\s\(([^\)]+)\)|\bPy_XDECREF\b\s\(([^\)]+)\)|\bPy_CLEAR\b\s\(([^\)]+)\))|(\bPy_DECREF\b\(([^\)]+)\)|\bav_free\b\(([^\)]+)\)|\bkfree\b\(([^\)]+)\)|\bPy_XDECREF\b\(([^\)]+)\)|\bPy_CLEAR\b\(([^\)]+)\))|\bfree\b\(([^\)]+)\)|\bdev_kfree_skb\b\(([^\)]+)\)|\bdev_kfree_skb\b\s\(([^\)]+)\)'
     paranthesis_rule = r"\((.*?)\)"
-    for f in flow_history:
+
+    for i, f in enumerate(flow_history):
         stmt = get_stmt_from_node_info(nodes, f)
         tobject = re.findall(double_free_rule, stmt)
         p = re.findall(paranthesis_rule, stmt)
+        if p:
+            p[0] = p[0].replace(" ", "")
         if tobject:
             # tobject = [x for x in p[0] if bool(x) != False]
-            tokenized_stmt = tokenizer(p[0])
-            lookup[f] = tokenized_stmt[0]
 
-        tokenized_stmt = tokenizer(stmt)
-        for token in tokenized_stmt:
-            for k, v in lookup.items():
-                x = re.findall(r"(" + v + r")", token)
-                if x:
-                    if k != f:
-                        print(
-                            'Possible CWE-416 in {}: lines {} and {}'.format(filename, k, f))
+            # tokenized_stmt = tokenizer(p[0])
+            out = backward_flow_history(
+                flow_history, i, p[0], nodes)
+            if bool(out):
+                if out[-1] != 'NULL':
+                    lookup[f] = p[0]
+            else:
+                lookup[f] = p[0]
+
+        # tokenized_stmt = tokenizer(stmt)
+        p = re.findall(paranthesis_rule, stmt)
+        if p:
+            p[0] = p[0].replace(" ", "")
+        # for token in tokenized_stmt:
+        for k, v in lookup.items():
+            out = null_checker(v, stmt)
+            if out == 'NULL':
+                new_lookup = invert_lookup(lookup)
+                del new_lookup[v]
+                lookup = invert_lookup(new_lookup)
+                break
+            elif out == 'Assignment':
+                new_lookup = invert_lookup(lookup)
+                del new_lookup[v]
+                lookup = invert_lookup(new_lookup)
+                break
+            else:
+                if p:
+                    x = re.findall(r"(" + v + r")", p[0])
+                    if x:
+                        if k != f:
+                            print(
+                                'Possible CWE-416 in {}: lines {} and {}'.format(filename, k, f))
 
 
 def DoubleFree(adjacency_list, code, node_id_to_line_number, line_number_to_node_id, filename, node_id_to_node_indice, depth_tree):
@@ -330,27 +431,31 @@ def main():
     _base_cpg_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/file_level_cpgs/linux'
     _base_file_path = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/file_level_examples/linux/'
     for root, dir, file in os.walk(_base_cpg_path):
-        current_dir = os.path.join(root, dir[0])
         p = '/media/nimashiri/DATA/vsprojects/ML_vul_detection/result'
         for item in dir:
+            # print(item)
+            current_dir = os.path.join(root, item)
             edges_path = os.path.join(current_dir, 'edges.csv')
             nodes_path = os.path.join(current_dir, 'nodes.csv')
-            code_file_path = _base_file_path+item
             edges = read_csv(edges_path)
             nodes = read_csv(nodes_path)
             node_indices, node_ids, line_numbers, node_id_to_line_number, node_indice_to_node_id, line_number_to_node_id, node_id_to_node_indice = extract_nodes_with_location_info(
                 nodes)
-            # adjacency_list = create_adjacency_list(
-            # line_numbers, node_id_to_line_number, edges, data_dependency_only=False)
-            #adjacency_list = clean_adjacency(adjacency_list)
-            code = read_code_file(code_file_path)
 
-            # depth_tree, forest = build_tree(edges, nodes)
+            adjacency_list = create_adjacency_list(
+                line_numbers, node_id_to_line_number, edges, data_dependency_only=True, control_dependency_only=False, both=False)
+            control_flow = create_adjacency_list(
+                line_numbers, node_id_to_line_number, edges, data_dependency_only=False, control_dependency_only=False, both=True)
+            control_flow = clean_adjacency(control_flow)
+            code = read_code_file(_base_file_path+item)
 
             #DoubleFree(adjacency_list, code, node_id_to_line_number, line_number_to_node_id, item, node_id_to_node_indice, forest)
             # print("Analyzing {}".format(item))
-            UseAfterFree(code, node_id_to_line_number, line_number_to_node_id,
-                         item, node_id_to_node_indice, nodes, edges, line_numbers)
+            # UseAfterFree(code, node_id_to_line_number, line_number_to_node_id,
+            #              item, node_id_to_node_indice, nodes, edges, line_numbers)
+
+            UseAfterFree(control_flow, code, node_id_to_line_number,
+                         line_number_to_node_id, item, node_id_to_node_indice, nodes)
             #depth_tree, forest = build_tree(edges, nodes)
 
 
